@@ -1,0 +1,1 @@
+An AI-powered Asynchronous Assessment Portal built with the MERN stack. Features real-time Edge-AI proctoring (face-api.js), browser lockdown security, and automated GenAI-based skill-gap analysis for streamlined recruitment.
