@@ -4,6 +4,7 @@ import ApiResponse from '../utils/ApiResponse.js';
 import { Submission } from '../models/submission.model.js';
 import { Exam } from '../models/exam.model.js';
 import { User } from '../models/user.model.js';
+import mongoose from 'mongoose';
 
 export const getCandidateReport = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -24,49 +25,120 @@ export const getCandidateReport = asyncHandler(async (req, res) => {
 });
 
 export const getAllSubmissions = asyncHandler(async (req, res) => {
-  const submissions = await Submission.find()
-    .populate('candidateId', 'username email fullName')
-    .populate('examId', 'title')
-    .sort({ submittedAt: -1 });
+  // Aggregate to fetch exams for passingScore comparison
+  const submissions = await Submission.aggregate([
+    {
+      $lookup: {
+        from: "exams",
+        localField: "examId",
+        foreignField: "_id",
+        as: "exam"
+      }
+    },
+    { $unwind: "$exam" },
+    {
+      $lookup: {
+        from: "users",
+        localField: "candidateId",
+        foreignField: "_id",
+        as: "candidate"
+      }
+    },
+    { $unwind: "$candidate" },
+    {
+      $addFields: {
+        isPassed: { $gte: ["$score", "$exam.passingScore"] },
+        aiScore: { $ifNull: ["$aiGrading.score", 0] }
+      }
+    },
+    {
+      $sort: {
+        isPassed: -1,      // Status: Passed first
+        aiScore: -1,       // Merit: High AI score
+        trustScore: -1,    // Integrity: High trust score
+        timeSpent: 1       // Speed: Lower time spent
+      }
+    }
+  ]);
+
+  // Map to match the previous populated structure for frontend compatibility
+  const formattedSubmissions = submissions.map(s => ({
+    ...s,
+    candidateId: {
+      _id: s.candidate._id,
+      username: s.candidate.username,
+      email: s.candidate.email,
+      fullName: s.candidate.fullName
+    },
+    examId: {
+      _id: s.exam._id,
+      title: s.exam.title,
+      passingScore: s.exam.passingScore
+    }
+  }));
 
   return res
     .status(200)
     .json(
-      new ApiResponse(200, { submissions }, "All submissions fetched successfully")
+      new ApiResponse(200, { submissions: formattedSubmissions }, "All submissions fetched successfully")
     );
 });
 
 export const getDashboardStats = asyncHandler(async (req, res) => {
   const totalCandidates = await User.countDocuments({ role: 'Candidate' });
-  const totalSubmissions = await Submission.countDocuments();
   const totalExams = await Exam.countDocuments();
 
-  const avgTrustScore = await Submission.aggregate([
+  // Aggregate over all submissions to compute:
+  // - totalSubmissions: every candidate attempt
+  // - passedCount: submissions where score >= exam.passingScore
+  // - avgTrustScore: average trustScore across all attempts
+  const submissionStats = await Submission.aggregate([
     {
-      $group: {
-        _id: null,
-        avgTrustScore: { $avg: '$trustScore' },
+      $lookup: {
+        from: 'exams',
+        localField: 'examId',
+        foreignField: '_id',
+        as: 'exam',
       },
     },
-  ]);
-
-  const violationStats = await Submission.aggregate([
+    { $unwind: '$exam' },
     {
       $group: {
         _id: null,
+        totalSubmissions: { $sum: 1 },
+        passedCount: {
+          $sum: {
+            $cond: [{ $gte: ['$score', '$exam.passingScore'] }, 1, 0],
+          },
+        },
+        avgTrustScore: { $avg: '$trustScore' },
         totalTabSwitches: { $sum: '$tabSwitches' },
         totalAIViolations: { $sum: '$aiViolations' },
       },
     },
   ]);
 
+  const base = submissionStats[0] || {
+    totalSubmissions: 0,
+    passedCount: 0,
+    avgTrustScore: 0,
+    totalTabSwitches: 0,
+    totalAIViolations: 0,
+  };
+
+  const passRate =
+    base.totalSubmissions > 0
+      ? Number(((base.passedCount / base.totalSubmissions) * 100).toFixed(2))
+      : 0;
+
   const stats = {
     totalCandidates,
-    totalSubmissions,
+    totalSubmissions: base.totalSubmissions,
     totalExams,
-    avgTrustScore: avgTrustScore[0]?.avgTrustScore || 0,
-    totalTabSwitches: violationStats[0]?.totalTabSwitches || 0,
-    totalAIViolations: violationStats[0]?.totalAIViolations || 0,
+    passRate,
+    avgTrustScore: Number(base.avgTrustScore?.toFixed?.(2) || 0),
+    totalTabSwitches: base.totalTabSwitches,
+    totalAIViolations: base.totalAIViolations,
   };
 
   return res
@@ -109,7 +181,7 @@ export const createExam = asyncHandler(async (req, res) => {
 });
 
 export const getAllExams = asyncHandler(async (req, res) => {
-  const exams = await Exam.find()
+  const exams = await Exam.find({ createdBy: req.user._id })
     .populate('createdBy', 'username email fullName')
     .sort({ createdAt: -1 });
 
@@ -117,5 +189,87 @@ export const getAllExams = asyncHandler(async (req, res) => {
     .status(200)
     .json(
       new ApiResponse(200, { exams }, "Exams fetched successfully")
+    );
+});
+
+export const getSubmissionsByExam = asyncHandler(async (req, res) => {
+  const { examId } = req.params;
+
+  const exam = await Exam.findById(examId);
+  if (!exam) {
+    throw new ApiError(404, "Exam not found");
+  }
+
+  // Fetch submissions for this exam and compute:
+  // - manualScore: sum of points for each correct answer
+  // - computedTrustScore: 100 - 33.33 for each violation (max 3 attempts)
+  // - isPassed: manualScore >= passingScore
+  const submissions = await Submission.find({ examId })
+    .populate('candidateId', 'username email fullName profilePicture resume');
+
+  const formattedSubmissions = submissions
+    .map((submissionDoc) => {
+      const submission = submissionDoc.toObject();
+
+      // Safely normalize answers into a Map-like interface
+      let answersMap;
+      if (submissionDoc.answers instanceof Map) {
+        answersMap = submissionDoc.answers;
+      } else if (submission.answers && typeof submission.answers === 'object') {
+        answersMap = new Map(Object.entries(submission.answers));
+      } else {
+        answersMap = new Map();
+      }
+
+      // Score calculation: 0 for incorrect, question.points for each correct
+      let manualScore = 0;
+      if (Array.isArray(exam.questions)) {
+        exam.questions.forEach((question, index) => {
+          const candidateAnswer = answersMap.get(index.toString()) || '';
+          const correctAnswer = question.correctAnswer || '';
+          if (
+            typeof candidateAnswer === 'string' &&
+            typeof correctAnswer === 'string' &&
+            candidateAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()
+          ) {
+            manualScore += question.points || 0;
+          }
+        });
+      }
+
+      // Trust score: 3 attempts → 33.33% per violation
+      const totalViolations =
+        (submission.tabSwitches || 0) + (submission.aiViolations || 0);
+      const rawTrust =
+        100 - (totalViolations * (100 / 3)); // ~33.33 per attempt
+      const computedTrustScore = Math.max(0, Number(rawTrust.toFixed(2)));
+
+      const isPassed = manualScore >= (exam.passingScore || 0);
+
+      return {
+        ...submission,
+        manualScore,
+        computedTrustScore,
+        isPassed,
+        candidateId: submission.candidateId,
+        examId: {
+          _id: exam._id,
+          title: exam.title,
+          passingScore: exam.passingScore,
+        },
+      };
+    })
+    // Rankings: higher trust score first, then higher test score
+    .sort((a, b) => {
+      if (b.computedTrustScore !== a.computedTrustScore) {
+        return b.computedTrustScore - a.computedTrustScore;
+      }
+      return (b.manualScore || 0) - (a.manualScore || 0);
+    });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, { submissions: formattedSubmissions }, "Submissions fetched successfully")
     );
 });

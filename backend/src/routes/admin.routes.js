@@ -1,5 +1,5 @@
 import express from 'express';
-import { getCandidateReport, getAllSubmissions, getDashboardStats, createExam, getAllExams } from '../controllers/admin.controller.js';
+import { getCandidateReport, getAllSubmissions, getDashboardStats, createExam, getAllExams, getSubmissionsByExam } from '../controllers/admin.controller.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/auth.middleware.js';
 
@@ -14,5 +14,7 @@ router.route("/submissions").get(getAllSubmissions);
 router.route("/dashboard-stats").get(getDashboardStats);
 router.route("/exams").get(getAllExams).post(createExam);
 router.route("/exams/create").post(createExam);
+router.route("/exams/:examId/submissions").get(getSubmissionsByExam);
+router.route("/exams/:examId/reports").get(getSubmissionsByExam);
 
 export default router;

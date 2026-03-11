@@ -33,23 +33,28 @@ class AIGradingService {
     // Initialize clients when first needed (lazy loading)
     this.initializeClients();
 
-    const prompt = `You are an expert technical evaluator. Evaluate the following candidate answer against the reference answer.
+    const prompt = `You are an elite technical interviewer. Your task is to evaluate a candidate's response with extreme precision.
 
 Question: ${questionText}
-
-Reference Answer: ${referenceAnswer}
-
+Model Answer (Ground Truth): ${referenceAnswer}
 Candidate Answer: ${candidateAnswer}
 
-Provide your evaluation in the following JSON format:
+Grading Rubric:
+1. Compare the Candidate's response directly against the Model Answer.
+2. Award a score from 0 to 10 based on technical accuracy and depth.
+3. For "Skill Gap": List specific technical concepts, keywords, or architectural details present in the Model Answer that the Candidate completely missed or misunderstood. Do not provide generic feedback.
+4. If the answer is vague, gibberish, or technically incorrect, award a 0.
+5. If the answer is perfect and matches the depth of the Model Answer, award a 10.
+
+Return ONLY a valid JSON object in this format:
 {
-  "score": <number between 0-10>,
-  "summary": "<brief qualitative summary of the answer>",
-  "gaps": ["<missing knowledge point 1>", "<missing knowledge point 2>", ...],
-  "detailedFeedback": "<detailed feedback explaining the score and gaps>"
+  "score": <number 0-10>,
+  "summary": "<concise qualitative evaluation>",
+  "gaps": ["<specific missed concept 1>", "<specific missed concept 2>", ...],
+  "detailedFeedback": "<brief explanation of the score based on the rubric>"
 }
 
-Be strict but fair. Focus on technical accuracy, completeness, and understanding.`;
+STRICT RULE: Do not include any text outside the JSON block.`;
 
     try {
       if (this.service === 'gemini') {

@@ -90,243 +90,209 @@ const CreateExam = () => {
       return;
     }
 
-    if (examData.questions.some(q => !q.questionText.trim() || !q.correctAnswer.trim())) {
-      setError('All questions must have question text and correct answer');
+    if (examData.questions.some(q => !q.questionText.trim() || (q.questionType === 'descriptive' && !q.correctAnswer.trim()))) {
+      setError('All descriptive questions must have question text and model answer');
       setLoading(false);
       return;
     }
 
     try {
       await api.post('/api/v1/admin/exams', examData);
-      setSuccess('Exam created successfully!');
+      setSuccess('Assessment published successfully!');
       setTimeout(() => {
         navigate('/admin');
       }, 1500);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create exam');
+      setError(err.response?.data?.message || 'Failed to publish assessment');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-white p-6 relative overflow-hidden">
-      {/* Abstract background blobs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 blur-[120px] rounded-full"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/20 blur-[120px] rounded-full"></div>
+    <div className="min-h-screen bg-obsidian text-slate-100 p-6 relative overflow-hidden">
+      {/* Ambient orbs */}
+      <div className="pointer-events-none absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
+      <div className="pointer-events-none absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 blur-[120px] rounded-full"></div>
 
       <div className="max-w-4xl mx-auto relative z-10">
-        <div className="mb-8">
+        <header className="mb-12">
           <button
             onClick={() => navigate('/admin')}
-            className="text-blue-400 hover:text-blue-300 mb-4 text-sm flex items-center gap-2 transition-colors"
+            className="btn-ghost flex items-center gap-2 mb-6 group"
           >
-            <span>←</span> Back to Dashboard
+            <span className="group-hover:-translate-x-1 transition-transform">←</span> Return to Dashboard
           </button>
-          <h1 className="text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-400">
-            Create New Assessment
+          <h1 className="text-4xl font-bold tracking-tight text-slate-100 mb-2">
+            Build <span className="text-blue-400">Secure</span> Assessment
           </h1>
-          <p className="text-slate-400 mt-2">Design your exam with AI-powered grading support</p>
-        </div>
+          <p className="text-slate-500 font-light">Configure the environment and technical items for your candidates.</p>
+        </header>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6 text-sm backdrop-blur-md">
+          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-6 py-4 rounded-2xl mb-8 text-sm animate-in fade-in slide-in-from-top-2">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl mb-6 text-sm backdrop-blur-md">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-6 py-4 rounded-2xl mb-8 text-sm animate-in fade-in slide-in-from-top-2">
             {success}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Exam Basic Info - Glassmorphic Card */}
-          <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
-              General Configuration
-            </h2>
-            <div className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-12 pb-32">
+          {/* General Config - Glass Card */}
+          <div className="glass rounded-[2rem] p-10 border border-white/5 shadow-2xl">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
+              <h2 className="text-xl font-bold tracking-tight">Deployment Configuration</h2>
+            </div>
+            
+            <div className="space-y-8">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Exam Title *</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Assessment Title</label>
                 <input
                   type="text"
                   value={examData.title}
                   onChange={(e) => setExamData({ ...examData, title: e.target.value })}
-                  placeholder="e.g., Senior Node.js Assessment"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder:text-slate-600 transition-all"
+                  placeholder="e.g., Senior Systems Architecture"
+                  className="input-dark text-base py-4"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Context / Description</label>
                 <textarea
                   value={examData.description}
                   onChange={(e) => setExamData({ ...examData, description: e.target.value })}
-                  placeholder="Describe the objective of this exam..."
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder:text-slate-600 h-28 resize-none transition-all"
+                  placeholder="Briefly outline the objective of this session..."
+                  className="input-dark h-32 resize-none text-base font-light py-4"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Passing Score (%)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Passing Threshold (%)</label>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     value={examData.passingScore}
                     onChange={(e) => setExamData({ ...examData, passingScore: parseInt(e.target.value) })}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white transition-all"
+                    className="input-dark py-4 font-mono-timer"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Duration (minutes)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Max Duration (MIN)</label>
                   <input
                     type="number"
                     min="1"
                     value={examData.duration}
                     onChange={(e) => setExamData({ ...examData, duration: parseInt(e.target.value) })}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white transition-all"
+                    className="input-dark py-4 font-mono-timer"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Status</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">System State</label>
                   <select
                     value={examData.isActive}
                     onChange={(e) => setExamData({ ...examData, isActive: e.target.value === 'true' })}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white appearance-none transition-all"
+                    className="input-dark py-4 font-bold"
                   >
-                    <option value={true} className="bg-slate-900">Active</option>
-                    <option value={false} className="bg-slate-900">Inactive</option>
+                    <option value={true} className="bg-obsidian">ACTIVE</option>
+                    <option value={false} className="bg-obsidian">INACTIVE</option>
                   </select>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Questions */}
-          <div className="space-y-6">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <span className="w-2 h-6 bg-emerald-500 rounded-full"></span>
-                Assessment Questions
-              </h2>
+          {/* Questions Section */}
+          <div className="space-y-8">
+            <div className="flex justify-between items-end px-2 sticky top-16 z-20 bg-obsidian/80 backdrop-blur-md pb-4">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight mb-1">Assessment Registry</h2>
+                <p className="text-slate-500 text-sm font-light">Structure the technical challenges below.</p>
+              </div>
               <button
                 type="button"
                 onClick={addQuestion}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-900/40"
+                className="btn-primary text-xs px-6 py-2.5"
               >
                 + Add Question
               </button>
             </div>
 
-            <div className="space-y-8">
+            <div className="space-y-10">
               {examData.questions.map((question, qIndex) => (
-                <div key={qIndex} className="bg-white/5 backdrop-blur-md p-8 rounded-3xl border border-white/10 shadow-xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-4">
+                <div key={qIndex} className="glass rounded-[2rem] p-10 border border-white/5 relative group animate-in slide-in-from-bottom-4 duration-500">
+                  <div className="absolute top-8 right-8">
                     {examData.questions.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeQuestion(qIndex)}
-                        className="text-slate-500 hover:text-red-400 transition-colors"
+                        className="text-slate-500 hover:text-rose-500 transition-colors text-[10px] font-bold uppercase tracking-widest"
                       >
-                        <span className="text-xs font-bold uppercase tracking-widest">Remove</span>
+                        Delete
                       </button>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-4 mb-8">
-                    <span className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
-                      {qIndex + 1}
+                  <div className="flex items-center gap-4 mb-10">
+                    <span className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-mono text-xl font-bold">
+                      {String(qIndex + 1).padStart(2, '0')}
                     </span>
-                    <h3 className="font-semibold text-lg">Question Details</h3>
+                    <h3 className="font-semibold text-lg tracking-tight">Question Intelligence</h3>
                   </div>
 
-                  <div className="space-y-6">
+                  <div className="space-y-8">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Question Text *</label>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Challenge Prompt</label>
                       <textarea
                         value={question.questionText}
                         onChange={(e) => updateQuestion(qIndex, 'questionText', e.target.value)}
-                        placeholder="What do you want to ask?"
-                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder:text-slate-600 h-24 resize-none transition-all"
+                        placeholder="Define the technical challenge..."
+                        className="input-dark h-28 resize-none py-4 font-light text-base"
                         required
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Question Type</label>
-                        <select
-                          value={question.questionType}
-                          onChange={(e) => updateQuestion(qIndex, 'questionType', e.target.value)}
-                          className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white appearance-none transition-all"
-                        >
-                          <option value="descriptive" className="bg-slate-900">Descriptive</option>
-                          <option value="multiple-choice" className="bg-slate-900">Multiple Choice</option>
-                        </select>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Response Type</label>
+                        <div className="input-dark py-4 px-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+                          Descriptive Response Only
+                        </div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Points</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Item Value (Points)</label>
                         <input
                           type="number"
                           min="1"
                           value={question.points}
                           onChange={(e) => updateQuestion(qIndex, 'points', parseInt(e.target.value))}
-                          className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white transition-all"
+                          className="input-dark py-4 font-mono-timer"
                         />
                       </div>
                     </div>
 
-                    {question.questionType === 'multiple-choice' && (
-                      <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                        <label className="block text-sm font-medium text-slate-300 mb-4">Multiple Choice Options</label>
-                        <div className="space-y-3">
-                          {question.options.map((option, oIndex) => (
-                            <div key={oIndex} className="flex gap-3">
-                              <input
-                                type="text"
-                                value={option}
-                                onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
-                                placeholder={`Option ${oIndex + 1}`}
-                                className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder:text-slate-600 transition-all"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeOption(qIndex, oIndex)}
-                                className="text-slate-500 hover:text-red-400 p-2"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => addOption(qIndex)}
-                            className="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1 mt-2"
-                          >
-                            <span>+</span> Add Option
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    {/* Multiple choice configuration removed; only descriptive questions are supported */}
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Model Answer (For AI Evaluation) *</label>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Intelligence Archetype (Model Answer)</label>
                       <textarea
                         value={question.correctAnswer}
                         onChange={(e) => updateQuestion(qIndex, 'correctAnswer', e.target.value)}
-                        placeholder="Provide the ideal answer for Gemini to evaluate against..."
-                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder:text-slate-600 h-24 resize-none transition-all"
+                        placeholder="Describe the ideal technical response for AI evaluation accuracy..."
+                        className="input-dark h-32 resize-none py-4 font-light text-base"
                         required
                       />
+                      <p className="mt-3 text-[10px] text-slate-600 font-medium italic">Gemini will use this as the primary ground truth for semantic grading.</p>
                     </div>
                   </div>
                 </div>
@@ -334,20 +300,20 @@ const CreateExam = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-6 pt-4 pb-12">
+          <div className="flex justify-end gap-6 pt-10">
             <button
               type="button"
               onClick={() => navigate('/admin')}
-              className="px-8 py-3 rounded-xl border border-white/10 hover:bg-white/5 text-slate-300 transition-all"
+              className="btn-ghost px-10"
             >
-              Discard
+              Discard Changes
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 px-10 py-3 rounded-xl disabled:opacity-50 text-white font-bold transition-all shadow-lg shadow-emerald-900/20"
+              className="btn-primary px-12 py-5 text-base"
             >
-              {loading ? 'Processing...' : 'Publish Assessment'}
+              {loading ? 'Publishing Securely...' : 'Deploy Assessment Protocol'}
             </button>
           </div>
         </form>

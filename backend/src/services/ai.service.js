@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import ApiError from '../utils/ApiError.js';
 
@@ -18,31 +20,44 @@ class AIService {
         const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `
-      You are an expert technical evaluator. 
-      Compare Candidate Answer: [${candidateAnswer}] 
-      with Model Answer: [${modelAnswer}]. 
-      
-      Question: [${questionText}]
+You are an expert technical evaluator for hiring assessments.
 
-      Grade 0-10 based on accuracy and completeness. 
-      Provide a 2-line summary and exactly 3 bullet points of missing skills (gaps) if any. 
-      
-      Return ONLY a JSON object matching this schema:
-      {
-        "score": number,
-        "summary": "string",
-        "gaps": ["string", "string", "string"],
-        "detailedFeedback": "string"
-      }
-    `;
+Your job is to evaluate how well a candidate's descriptive answer matches the company's model answer.
+
+Question:
+${questionText}
+
+Company Model Answer (ground truth from recruiter):
+${modelAnswer}
+
+Candidate Answer:
+${candidateAnswer}
+
+Tasks:
+1. Compare the Candidate Answer directly against the Company Model Answer.
+2. Assign a numeric score from 0 or 10 based ONLY on technical correctness, coverage of key points, and depth.
+3. Write a concise natural-language summary that describes this specific candidate's strengths and weaknesses based on their answers, as if you are briefing a recruiter.
+4. For "gaps", list specific concepts, keywords, or critical points that appear in the Company Model Answer but are missing or incorrect in the Candidate Answer. Do not use generic phrases.
+
+STRICT OUTPUT FORMAT:
+Return ONLY a valid JSON object with this exact shape and no extra text, markdown, or commentary:
+{
+  "score": <number between 0 or  10>,
+  "summary": "<short narrative summary of the candidate based on their answers>",
+  "gaps": ["<missing concept 1>", "<missing concept 2>", "..."],
+  "detailedFeedback": "<1-3 sentences explaining why this score was given>"
+}
+`;
 
         try {
             const result = await model.generateContent(prompt);
             const response = await result.response;
             const text = response.text();
 
-            // Clean up potential markdown formatting in the response
-            const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            // Extract JSON robustly (handles markdown fences or extra text)
+            const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            const jsonStr = jsonMatch ? jsonMatch[0] : cleaned;
             const grading = JSON.parse(jsonStr);
 
             return grading;

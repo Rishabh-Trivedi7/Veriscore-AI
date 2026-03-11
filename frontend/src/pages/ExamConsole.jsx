@@ -17,15 +17,18 @@ const ExamConsole = () => {
   const [profileDescriptor, setProfileDescriptor] = useState(null);
   const [lookAwayStartTime, setLookAwayStartTime] = useState(null);
   const [activeViolation, setActiveViolation] = useState(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [startTime, setStartTime] = useState(null);
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleViolation = (type, description) => {
     setActiveViolation({ type, description });
+    setIsPaused(true);
   };
 
-  const { violations: proctorViolations, videoRef, modelsLoaded } = useProctor(
+  const { violations: proctorViolations, videoRef, modelsLoaded, stopCamera } = useProctor(
     exam?._id || examIdFromParams,
     isExamStarted,
     handleViolation
@@ -35,6 +38,8 @@ const ExamConsole = () => {
   const isExamStartedRef = useRef(false);
   const activeViolationRef = useRef(null);
   const isSubmittingRef = useRef(false);
+  const timeInitializedRef = useRef(false);
+  const timeLeftRef = useRef(0);
 
   const MAX_VIOLATIONS = 3;
   const totalViolations = proctorViolations.tabSwitches + proctorViolations.faceViolations + proctorViolations.fullscreenExits;
@@ -62,11 +67,42 @@ const ExamConsole = () => {
     isSubmittingRef.current = isSubmitting;
   }, [isSubmitting]);
 
+  // Keep timeLeftRef in sync
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
+  // Timer countdown — does NOT depend on timeLeft to avoid interval recreation
+  useEffect(() => {
+    if (!isExamStarted || isPaused) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmit('Time is up! Exam automatically submitted.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isExamStarted, isPaused]);
+
   useEffect(() => {
     loadExam();
     if (!profileDescriptor && user?.profilePicture) {
       loadFaceModels(); // Still needed for profile descriptor comparison if requested
     }
+    // Cleanup on unmount: Hardware Kill-Switch
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject;
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (stopCamera) stopCamera();
+    };
   }, []);
 
   const loadExam = async () => {
@@ -76,7 +112,11 @@ const ExamConsole = () => {
       const examData = response.data.data.exam;
       setExam(examData);
       setAnswers({}); // Reset answers
-      setTimeLeft(examData.duration * 60); // Convert minutes to seconds
+      // Only initialize timeLeft once to prevent resets
+      if (!timeInitializedRef.current) {
+        setTimeLeft(examData.duration * 60); // Convert minutes to seconds
+        timeInitializedRef.current = true;
+      }
     } catch (error) {
       console.error('Failed to load exam:', error);
       const message = error.response?.data?.message || 'Failed to load exam. Please try again.';
@@ -88,7 +128,6 @@ const ExamConsole = () => {
   };
 
   const loadFaceModels = async () => {
-    // Note: useProctor already loads some models, but we might need more for recognition
     try {
       await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
       loadProfileDescriptor();
@@ -124,6 +163,7 @@ const ExamConsole = () => {
 
   const handleContinueExam = () => {
     setActiveViolation(null);
+    setIsPaused(false);
     requestFullscreen();
   };
 
@@ -151,15 +191,18 @@ const ExamConsole = () => {
     setIsSubmitting(true);
 
     try {
-      const timeSpent = exam.duration * 60 - timeLeft;
-      await api.post('/api/v1/exam/submit', {
+      // Ensure answers is a clean plain object for backend validation
+      const finalAnswers = answers instanceof Map ? Object.fromEntries(answers) : { ...answers };
+      
+      const submissionData = {
         examId: exam._id,
-        answers,
-        tabSwitches: proctorViolations.tabSwitches,
-        faceViolations: proctorViolations.faceViolations,
-        fullscreenExits: proctorViolations.fullscreenExits,
-        timeSpent: Math.max(0, Math.floor(timeSpent / 60)),
-      });
+        answers: finalAnswers,
+        tabSwitches: Number(proctorViolations.tabSwitches) || 0,
+        aiViolations: (Number(proctorViolations.faceViolations) || 0) + (Number(proctorViolations.fullscreenExits) || 0),
+        timeSpent: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
+      };
+
+      await api.post('/api/v1/exam/submit', submissionData);
 
       showAlert(reason || 'Exam submitted successfully!', 'success');
       setTimeout(() => {
@@ -167,13 +210,38 @@ const ExamConsole = () => {
       }, 2000);
     } catch (error) {
       console.error('Submission failed:', error);
-      showAlert('Failed to submit exam. Please try again.', 'error');
+      const errorMsg = error.response?.data?.message || 'Failed to submit exam. Please try again.';
+      showAlert(errorMsg, 'error');
+    } finally {
       setIsSubmitting(false);
+      // HARDWARE KILL-SWITCH: Mandatory shutdown
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject;
+        stream.getTracks().forEach(track => {
+          track.stop();
+          console.log(`[Hardware] Stopped track: ${track.label}`);
+        });
+        videoRef.current.srcObject = null;
+      }
+      if (stopCamera) stopCamera();
+
+      // If exam ended due to time/violations, ensure redirect to dashboard and exit fullscreen
+      if (reason) {
+        try {
+          if (document.fullscreenElement && document.exitFullscreen) {
+            await document.exitFullscreen();
+          }
+        } catch (e) {
+          // ignore fullscreen exit errors
+        }
+        navigate('/candidate');
+      }
     }
   };
 
   const handleAcceptRules = () => {
     setIsExamStarted(true);
+    setStartTime(Date.now());
     requestFullscreen();
   };
 
@@ -185,42 +253,42 @@ const ExamConsole = () => {
 
   if (!exam) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-blue-50">
-        <div className="text-xl text-blue-900 font-medium animate-pulse">Initializing Exam Environment...</div>
+      <div className="min-h-screen flex items-center justify-center bg-obsidian">
+        <div className="text-xl text-blue-400 font-medium animate-pulse tracking-tight">Initializing Secure Environment...</div>
       </div>
     );
   }
 
   return (
-    <div className={`min-h-screen bg-slate-50 text-blue-900 p-4 transition-colors duration-500 ${activeViolation ? 'bg-red-50 overflow-hidden' : ''}`}>
+    <div className={`min-h-screen bg-obsidian text-slate-100 transition-colors duration-500 ${activeViolation ? 'bg-rose-950/20' : ''}`}>
       {/* Violation Overlay */}
       {activeViolation && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-blue-950/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border-t-8 border-red-500 text-center">
-            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-obsidian/80 backdrop-blur-xl p-4 animate-in fade-in duration-300">
+          <div className="glass rounded-3xl shadow-2xl max-w-md w-full p-8 border-t-8 border-rose-500 text-center animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6 glow-rose">
               <span className="text-4xl">⚠️</span>
             </div>
-            <h2 className="text-3xl font-black mb-2 text-red-600">VIOLATION!</h2>
-            <p className="text-slate-600 font-medium mb-8 leading-relaxed">{activeViolation.description}</p>
+            <h2 className="text-3xl font-bold tracking-tight mb-2 text-rose-500">Protocol Breach</h2>
+            <p className="text-slate-400 font-medium mb-8 leading-relaxed">{activeViolation.description}</p>
 
-            <div className="bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100">
-              <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-2">Remaining Chances</div>
-              <div className="text-4xl font-black text-slate-900">
-                {Math.max(0, MAX_VIOLATIONS - totalViolations)} / {MAX_VIOLATIONS}
+            <div className="bg-slate-900/50 rounded-2xl p-6 mb-8 border border-slate-800">
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 text-center">Remaining Attempts</div>
+              <div className="text-4xl font-mono text-slate-100 font-bold">
+                {Math.max(0, MAX_VIOLATIONS - totalViolations)} <span className="text-slate-700">/</span> {MAX_VIOLATIONS}
               </div>
             </div>
 
             {totalViolations < MAX_VIOLATIONS ? (
               <button
                 onClick={handleContinueExam}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all duration-200 text-lg shadow-lg hover:shadow-blue-200 active:scale-[0.98]"
+                className="btn-primary w-full py-4 text-lg"
               >
                 I Understand, Resume Exam
               </button>
             ) : (
-              <div className="flex items-center justify-center gap-3 text-red-600 font-bold">
-                <div className="w-5 h-5 border-2 border-red-600 border-t-transparent animate-spin rounded-full"></div>
-                Limit Reached. Submitting...
+              <div className="flex items-center justify-center gap-3 text-rose-500 font-bold">
+                <div className="w-5 h-5 border-2 border-rose-500 border-t-transparent animate-spin rounded-full"></div>
+                Limit Reached. Finalizing Submission...
               </div>
             )}
           </div>
@@ -228,42 +296,41 @@ const ExamConsole = () => {
       )}
 
       {/* Main UI */}
-      <div className={`max-w-7xl mx-auto transition-all duration-500 ${activeViolation ? 'blur-xl scale-95 pointer-events-none opacity-50' : ''}`}>
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase tracking-wider">Active Assessment</span>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900">{exam.title}</h1>
+      <div className={`transition-all duration-500 ${activeViolation ? 'blur-2xl scale-95 pointer-events-none opacity-50' : ''}`}>
+        {/* Header Section — Fixed Top Bar */}
+        <div className="fixed top-0 left-0 right-0 z-40 glass border-b border-white/5">
+          <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
+            {/* Left — Exam Title */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20">Active Session</span>
+              </div>
+              <h1 className="text-lg font-semibold tracking-tight text-slate-100 truncate">{exam.title}</h1>
             </div>
-            <p className="text-slate-500 text-sm">{exam.description}</p>
-          </div>
-          <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 min-w-[200px] justify-between">
-            <div className="text-slate-500 text-xs font-bold uppercase tracking-widest">Timer</div>
-            <div className={`text-3xl font-mono font-black ${timeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-blue-600'}`}>
-              {formatTime(timeLeft)}
-            </div>
-          </div>
-        </div>
 
-        {/* Floating Widgets */}
-        <div className="fixed top-6 right-6 flex flex-col gap-3 z-50">
-          <div className="bg-white/80 backdrop-blur border border-slate-200 rounded-xl px-4 py-3 shadow-xl">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Violations Tracking</div>
-            <div className="flex items-center gap-4 font-black text-slate-700">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-400">Tab</span>
-                <span>{proctorViolations.tabSwitches}</span>
+            {/* Center — Timer */}
+            <div className="flex flex-col items-center px-8 border-x border-white/5 h-full justify-center">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">Time Remaining</div>
+              <div className={`text-4xl font-mono-timer font-bold tracking-tight ${timeLeft < 300 ? 'text-rose-500 animate-pulse' : 'text-blue-400'}`}>
+                {formatTime(timeLeft)}
               </div>
-              <div className="w-[1px] h-6 bg-slate-200"></div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-400">Face</span>
-                <span>{proctorViolations.faceViolations}</span>
-              </div>
-              <div className="w-[1px] h-6 bg-slate-200"></div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-400">FS</span>
-                <span>{proctorViolations.fullscreenExits}</span>
+            </div>
+
+            {/* Right — Violations Counter */}
+            <div className="flex-1 flex justify-end">
+              <div className="flex items-center gap-6 px-4">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Tab</span>
+                  <span className={`text-lg font-bold font-mono-timer ${proctorViolations.tabSwitches > 0 ? 'text-rose-400' : 'text-slate-300'}`}>{proctorViolations.tabSwitches}</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Face</span>
+                  <span className={`text-lg font-bold font-mono-timer ${proctorViolations.faceViolations > 0 ? 'text-rose-400' : 'text-slate-300'}`}>{proctorViolations.faceViolations}</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Exit</span>
+                  <span className={`text-lg font-bold font-mono-timer ${proctorViolations.fullscreenExits > 0 ? 'text-rose-400' : 'text-slate-300'}`}>{proctorViolations.fullscreenExits}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -271,51 +338,56 @@ const ExamConsole = () => {
 
         {/* Global Notifications */}
         {alert && (
-          <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-2xl font-bold animate-in slide-in-from-top-4 duration-300 ${alert.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
-            }`}>
+          <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl font-bold animate-in slide-in-from-top-4 duration-300 ${alert.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-obsidian'}`}>
             {alert.message}
           </div>
         )}
 
-        {/* Proctored Video Preview */}
-        <div className="fixed bottom-6 left-6 w-56 h-40 bg-slate-900 rounded-2xl border-2 border-white shadow-2xl overflow-hidden z-40 group">
-          <video ref={videoRef} autoPlay muted className="w-full h-full object-cover" />
-          <div className="absolute bottom-3 left-3 right-3 bg-black/40 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-white text-center opacity-0 group-hover:opacity-100 transition-opacity">
-            {isExamStarted ? 'PROCTOR ACTIVE' : 'SYSTEM IDLE'}
+        {/* Camera Preview — Rounded Floating Bubble */}
+        <div className={`fixed bottom-8 left-8 w-44 h-44 rounded-full border-4 overflow-hidden z-40 shadow-2xl transition-all duration-300 ${activeViolation ? 'border-rose-500 glow-rose scale-110' : 'border-emerald-500 glow-emerald'}`}>
+          <video ref={videoRef} autoPlay muted className="w-full h-full object-cover grayscale-[0.2]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end justify-center pb-4">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/60 backdrop-blur-md rounded-full border border-white/10">
+              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isExamStarted ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+              <span className="text-[9px] font-bold text-white tracking-widest uppercase">{isExamStarted ? 'Live' : 'Idle'}</span>
+            </div>
           </div>
         </div>
 
-        {/* Question Containers */}
-        <div className="max-w-3xl mx-auto space-y-6 pb-24">
-          {exam.questions.map((question, index) => (
-            <div key={index} className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all hover:shadow-md">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-black">
-                  {index + 1}
+        {/* Question Containers — Central Focus Column */}
+        <div className="max-w-2xl mx-auto pt-32 pb-32">
+          <div className="space-y-12">
+            {exam.questions.map((question, index) => (
+              <div key={index} className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700" style={{ animationDelay: `${index * 100}ms` }}>
+                <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                  <div className="flex items-center gap-4">
+                    <span className="text-4xl font-black text-white/5 font-mono">{String(index + 1).padStart(2, '0')}</span>
+                    <h3 className="text-xl font-medium text-slate-100 tracking-tight leading-relaxed">
+                      {question.questionText}
+                    </h3>
+                  </div>
+                  <span className="px-3 py-1 bg-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-widest rounded-full border border-slate-700">
+                    {question.points} PTS
+                  </span>
                 </div>
-                <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                  {question.points} Points
-                </span>
+                
+                <textarea
+                  value={answers[index] || ''}
+                  onChange={(e) => handleAnswerChange(index, e.target.value)}
+                  placeholder="Draft your response intelligently..."
+                  className="w-full h-64 px-8 py-7 bg-white/5 border border-white/5 rounded-3xl focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:bg-white/[0.07] focus:border-white/10 text-slate-200 text-lg transition-all resize-none shadow-2xl placeholder-slate-600 font-light leading-relaxed"
+                />
               </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-6 leading-relaxed">
-                {question.questionText}
-              </h3>
-              <textarea
-                value={answers[index] || ''}
-                onChange={(e) => handleAnswerChange(index, e.target.value)}
-                placeholder="Compose your technical response here..."
-                className="w-full h-48 px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-50/50 focus:bg-white focus:border-blue-200 text-slate-800 text-lg transition-all resize-none shadow-inner"
-              />
-            </div>
-          ))}
+            ))}
+          </div>
 
-          <div className="flex justify-center pt-8">
+          <div className="flex justify-center pt-20">
             <button
               onClick={() => handleSubmit()}
               disabled={isSubmitting || !isExamStarted}
-              className="group bg-emerald-600 hover:bg-emerald-700 text-white font-black py-5 px-16 rounded-2xl transition-all duration-300 disabled:opacity-30 shadow-xl shadow-emerald-100 hover:-translate-y-1 active:translate-y-0"
+              className="btn-primary px-20 py-5 text-base"
             >
-              {isSubmitting ? 'Finalizing Submission...' : 'FINISH & SUBMIT ASSESSMENT'}
+              {isSubmitting ? 'Finalizing Assessment...' : 'Submit Final Response'}
             </button>
           </div>
         </div>
@@ -323,23 +395,24 @@ const ExamConsole = () => {
 
       {/* Initiation Overlay */}
       {!isExamStarted && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 animate-in fade-in duration-500">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-10 border border-slate-100">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                <span className="text-2xl">⚡</span>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-obsidian/90 backdrop-blur-2xl p-4 animate-in fade-in duration-500">
+          <div className="glass rounded-[2rem] shadow-2xl max-w-xl w-full p-12 border border-white/5 animate-in zoom-in-95 duration-500">
+            <div className="flex items-center gap-5 mb-10">
+              <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20 glow-blue">
+                <span className="text-3xl">⚡</span>
               </div>
               <div>
-                <h2 className="text-3xl font-black text-slate-900">Protocols Required</h2>
-                <p className="text-slate-500 font-medium">Verify compliance to begin</p>
+                <h2 className="text-3xl font-bold tracking-tight text-slate-100">Protocols Required</h2>
+                <p className="text-slate-400 text-sm font-medium">System verification for secure assessment</p>
               </div>
             </div>
 
-            <div className="space-y-4 mb-10">
-              <div className="p-5 rounded-2xl bg-orange-50 border border-orange-100 flex gap-4">
+            <div className="space-y-4 mb-12">
+              <div className="p-6 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex gap-5">
                 <span className="text-3xl">🤖</span>
-                <p className="text-sm font-semibold text-orange-900 leading-relaxed">
-                  <strong>PROCTORING ACTIVE:</strong> AI-driven vision and behavioral analysis will be performed throughout this session.
+                <p className="text-sm font-medium text-amber-200 leading-relaxed">
+                  <strong className="text-amber-100 uppercase tracking-wider block mb-1">AI Proctoring Enabled</strong> 
+                  Biometric analysis and environmental monitoring will be active. Maintain focus within the portal.
                 </p>
               </div>
 
@@ -347,14 +420,14 @@ const ExamConsole = () => {
                 {[
                   { icon: '💠', label: 'Locked Fullscreen', desc: 'Exit triggers alert' },
                   { icon: '📸', label: 'Face Tracking', desc: 'Continuous verification' },
-                  { icon: '🔗', label: 'No External Navigation', desc: 'App/Tab switch logs' },
-                  { icon: '🛑', label: '3-Strike Policy', desc: 'Auto-kick on limit' }
+                  { icon: '🔗', label: 'No Off-tab Navigation', desc: 'Immediate breach logging' },
+                  { icon: '🛑', label: '3-Strike Policy', desc: 'Protocol termination' }
                 ].map((rule, i) => (
-                  <div key={i} className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                    <span className="text-xl">{rule.icon}</span>
+                  <div key={i} className="flex items-center gap-4 p-5 rounded-2xl bg-white/5 border border-white/5">
+                    <span className="text-2xl">{rule.icon}</span>
                     <div>
-                      <div className="font-bold text-slate-900 text-[11px] uppercase tracking-wider">{rule.label}</div>
-                      <div className="text-[10px] text-slate-500 font-medium">{rule.desc}</div>
+                      <div className="font-bold text-slate-100 text-[11px] uppercase tracking-wider mb-0.5">{rule.label}</div>
+                      <div className="text-[10px] text-slate-500 font-medium leading-tight">{rule.desc}</div>
                     </div>
                   </div>
                 ))}
@@ -363,9 +436,9 @@ const ExamConsole = () => {
 
             <button
               onClick={handleAcceptRules}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl transition-all duration-300 text-xl shadow-2xl shadow-blue-100 hover:scale-[1.02] active:scale-[0.98]"
+              className="btn-primary w-full py-5 text-xl tracking-tight"
             >
-              INITIALIZE ASSESSMENT
+              Initialize Assessment
             </button>
           </div>
         </div>

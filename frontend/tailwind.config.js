@@ -6,15 +6,24 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+      },
       colors: {
-        background: "#ffffff",
-        foreground: "#0f172a",
-        primary: "#3b82f6",
-        dark: {
-          bg: '#0f172a',
-          surface: '#1e293b',
-          card: '#334155',
-          border: '#475569',
+        obsidian: '#09090b',
+        surface: {
+          DEFAULT: 'rgba(15, 23, 42, 0.5)',
+          solid: '#0f172a',
+        },
+      },
+      animation: {
+        'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+      },
+      keyframes: {
+        'glow-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.6' },
         },
       },
     },

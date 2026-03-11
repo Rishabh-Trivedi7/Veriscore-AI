@@ -52,6 +52,10 @@ const submissionSchema = new mongoose.Schema(
       of: String,
       required: true,
     },
+    score: {
+      type: Number,
+      default: 0,
+    },
     aiGrading: {
       type: aiGradingSchema,
     },

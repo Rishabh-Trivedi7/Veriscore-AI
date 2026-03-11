@@ -38,25 +38,35 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-blue-50 px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-blue-100">
-          <h1 className="text-3xl font-bold text-center mb-2 text-blue-900">
-            VeriScore AI
+    <div className="min-h-screen flex items-center justify-center bg-obsidian px-4 relative overflow-hidden">
+      {/* Ambient orbs */}
+      <div className="pointer-events-none absolute top-1/4 left-1/3 w-96 h-96 rounded-full bg-blue-600/8 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-1/4 right-1/3 w-80 h-80 rounded-full bg-emerald-500/8 blur-[120px]" />
+
+      <div className="w-full max-w-md relative z-10">
+        <div className="glass rounded-2xl p-8 hover:scale-[1.01] transition-transform duration-300">
+          {/* Logo */}
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-500 via-blue-400 to-emerald-400 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
+              VS
+            </div>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-center mb-1 text-slate-100">
+            Welcome back
           </h1>
-          <p className="text-center text-blue-800 mb-8">
+          <p className="text-center text-slate-500 text-sm mb-8">
             Sign in to your AI‑proctored assessment workspace
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-md text-sm">
+              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-xl text-sm">
                 {error}
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-blue-900">
+              <label className="block text-sm font-medium mb-2 text-slate-300">
                 Username or Email
               </label>
               <input
@@ -65,13 +75,14 @@ const Login = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, identifier: e.target.value })
                 }
-                className="w-full px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-900"
+                className="input-dark"
+                placeholder="Enter username or email"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-blue-900">
+              <label className="block text-sm font-medium mb-2 text-slate-300">
                 Password
               </label>
               <input
@@ -80,7 +91,8 @@ const Login = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, password: e.target.value })
                 }
-                className="w-full px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-900"
+                className="input-dark"
+                placeholder="••••••••"
                 required
               />
             </div>
@@ -88,15 +100,15 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 disabled:opacity-50 shadow-sm"
+              className="btn-primary w-full py-3"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-blue-800">
+          <p className="mt-6 text-center text-sm text-slate-500">
             Don't have an account?{' '}
-            <Link to="/register" className="text-emerald-600 hover:text-emerald-700 font-medium">
+            <Link to="/register" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
               Register
             </Link>
           </p>

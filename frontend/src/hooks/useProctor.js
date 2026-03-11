@@ -10,6 +10,7 @@ const useProctor = (examId, isExamStarted, onViolation) => {
     });
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const videoRef = useRef(null);
+    const streamRef = useRef(null);
     const faceDetectionInterval = useRef(null);
 
     useEffect(() => {
@@ -26,6 +27,29 @@ const useProctor = (examId, isExamStarted, onViolation) => {
         };
         loadModels();
     }, []);
+
+    // Initialize camera stream
+    useEffect(() => {
+        if (!isExamStarted) return;
+
+        const startCamera = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+            } catch (err) {
+                console.error("Camera access error:", err);
+            }
+        };
+
+        startCamera();
+
+        return () => {
+            stopCamera();
+        };
+    }, [isExamStarted]);
 
     useEffect(() => {
         if (!isExamStarted) return;
@@ -81,7 +105,7 @@ const useProctor = (examId, isExamStarted, onViolation) => {
                 setViolations(prev => ({ ...prev, faceViolations: prev.faceViolations + 1 }));
                 if (onViolation) onViolation('no-face', desc);
             } else if (detections.length > 1) {
-                const desc = 'Multiple faces detected in the frame';
+                const desc = 'Multiple individuals detected. Please ensure you are alone.';
                 logViolation('multiple-faces', desc);
                 setViolations(prev => ({ ...prev, faceViolations: prev.faceViolations + 1 }));
                 if (onViolation) onViolation('multiple-faces', desc);
@@ -92,6 +116,18 @@ const useProctor = (examId, isExamStarted, onViolation) => {
     const stopFaceDetection = () => {
         if (faceDetectionInterval.current) {
             clearInterval(faceDetectionInterval.current);
+            faceDetectionInterval.current = null;
+        }
+    };
+
+    const stopCamera = () => {
+        stopFaceDetection();
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
         }
     };
 
@@ -110,7 +146,8 @@ const useProctor = (examId, isExamStarted, onViolation) => {
     return {
         violations,
         videoRef,
-        modelsLoaded
+        modelsLoaded,
+        stopCamera
     };
 };
 

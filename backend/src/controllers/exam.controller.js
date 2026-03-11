@@ -42,7 +42,15 @@ export const getExamQuestions = asyncHandler(async (req, res) => {
 });
 
 export const listExams = asyncHandler(async (req, res) => {
-  const exams = await Exam.find({ isActive: true }).select("-questions.correctAnswer");
+  // Get all exams the user has already attempted
+  const submissions = await Submission.find({ candidateId: req.user._id }).select('examId');
+  const attemptedExamIds = submissions.map(s => s.examId);
+
+  // Filter out already-attempted exams
+  const exams = await Exam.find({
+    isActive: true,
+    _id: { $nin: attemptedExamIds }
+  }).select("-questions.correctAnswer");
 
   return res
     .status(200)
@@ -91,46 +99,69 @@ export const submitExam = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Exam not found");
   }
 
-  // Check if submission already exists
+  // Check if submission already exists for this candidate and exam
   let submission = await Submission.findOne({ candidateId, examId });
 
-  if (submission) {
+  // If a fully-graded submission already exists, block re-submission
+  if (submission && submission.aiGrading) {
     throw new ApiError(400, "Exam already submitted");
   }
 
-  // Convert answers to Map format
+  // Normalize answers to a Map
   const answersMap = new Map();
   Object.entries(answers).forEach(([key, value]) => {
     answersMap.set(key, value);
   });
 
-  // Get violation counts from request (sent by frontend)
-  const { tabSwitches = 0, aiViolations = 0, violationLogs = [] } = req.body;
+  // Get violation counts from request (sent by frontend) — parse safely
+  const tabSwitches = parseInt(req.body.tabSwitches, 10) || 0;
+  const aiViolations = parseInt(req.body.aiViolations, 10) || 0;
+  const violationLogs = Array.isArray(req.body.violationLogs) ? req.body.violationLogs : [];
 
-  // Create submission with initial data
-  submission = await Submission.create({
-    candidateId,
-    examId,
-    answers: answersMap,
-    tabSwitches,
-    aiViolations,
-    violationLogs,
-    timeSpent,
-  });
+  // Create or update submission with final data
+  try {
+    if (!submission) {
+      submission = await Submission.create({
+        candidateId,
+        examId,
+        answers: new Map(Object.entries(answers)),
+        tabSwitches,
+        aiViolations,
+        violationLogs,
+        timeSpent: parseInt(timeSpent, 10) || 0, // seconds
+      });
+    } else {
+      // Upgrade preliminary/proctor-created submission to final
+      submission.answers = new Map(Object.entries(answers));
+      submission.tabSwitches = tabSwitches;
+      submission.aiViolations = aiViolations;
+      submission.violationLogs = violationLogs;
+      submission.timeSpent = parseInt(timeSpent, 10) || 0;
+      await submission.save();
+    }
+  } catch (error) {
+    console.error("Submission Creation Error:", error);
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      throw new ApiError(400, `Validation Failed: ${messages.join(', ')}`);
+    }
+    throw new ApiError(500, "Failed to initialize submission. Please try again.");
+  }
 
   // Perform AI grading
   try {
-    const aiGrading = await AIService.gradeMultipleAnswers(answersMap, exam);
+    const aiGrading = await AIService.gradeMultipleAnswers(submission.answers, exam);
 
     submission.aiGrading = aiGrading;
+    submission.score = (aiGrading.score || 0) * 10; // Convert 0-10 to percentage
     await submission.save();
   } catch (error) {
     console.error("AI Grading Error:", error);
     // Continue even if AI grading fails
   }
 
-  // Recalculate trust score
-  submission.trustScore = Math.max(0, 100 - submission.tabSwitches * 10 - submission.aiViolations * 15);
+  // Recalculate trust score - handled by pre-save hook in model, 
+  // but explicitly saving here to ensure AI grading is persisted.
   await submission.save();
 
   const populatedSubmission = await Submission.findById(submission._id)
