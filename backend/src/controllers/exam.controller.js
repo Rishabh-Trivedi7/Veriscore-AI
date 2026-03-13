@@ -3,7 +3,7 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { Exam } from '../models/exam.model.js';
 import { Submission } from '../models/submission.model.js';
-import AIService from '../services/ai.service.js';
+import AIGradingService from '../services/AIGradingFinal.services.js';
 
 export const getExamQuestions = asyncHandler(async (req, res) => {
   const exam = await Exam.findOne({ isActive: true });
@@ -150,7 +150,7 @@ export const submitExam = asyncHandler(async (req, res) => {
 
   // Perform AI grading
   try {
-    const aiGrading = await AIService.gradeMultipleAnswers(submission.answers, exam);
+    const aiGrading = await AIGradingService.gradeMultipleAnswers(submission.answers, exam);
 
     submission.aiGrading = aiGrading;
     submission.score = (aiGrading.score || 0) * 10; // Convert 0-10 to percentage

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import * as faceapi from 'face-api.js';
 import api, { API_BASE_URL } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import useProctor from '../hooks/useProctor';
@@ -14,8 +13,6 @@ const ExamConsole = () => {
   const [alert, setAlert] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isExamStarted, setIsExamStarted] = useState(false);
-  const [profileDescriptor, setProfileDescriptor] = useState(null);
-  const [lookAwayStartTime, setLookAwayStartTime] = useState(null);
   const [activeViolation, setActiveViolation] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
   const [startTime, setStartTime] = useState(null);
@@ -92,9 +89,6 @@ const ExamConsole = () => {
 
   useEffect(() => {
     loadExam();
-    if (!profileDescriptor && user?.profilePicture) {
-      loadFaceModels(); // Still needed for profile descriptor comparison if requested
-    }
     // Cleanup on unmount: Hardware Kill-Switch
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
@@ -124,35 +118,6 @@ const ExamConsole = () => {
       if (error.response?.status === 400 || error.response?.status === 403) {
         setTimeout(() => navigate('/candidate'), 3000);
       }
-    }
-  };
-
-  const loadFaceModels = async () => {
-    try {
-      await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
-      loadProfileDescriptor();
-    } catch (error) {
-      console.error('Failed to load face recognition models:', error);
-    }
-  };
-
-  const loadProfileDescriptor = async () => {
-    try {
-      const imgUrl = user.profilePicture.startsWith('http')
-        ? user.profilePicture
-        : `${API_BASE_URL}${user.profilePicture}`;
-
-      const img = await faceapi.fetchImage(imgUrl);
-      const detection = await faceapi
-        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-      if (detection) {
-        setProfileDescriptor(detection.descriptor);
-      }
-    } catch (error) {
-      console.error('Failed to load profile descriptor:', error);
     }
   };
 
@@ -343,8 +308,8 @@ const ExamConsole = () => {
           </div>
         )}
 
-        {/* Camera Preview — Rounded Floating Bubble */}
-        <div className={`fixed bottom-8 left-8 w-44 h-44 rounded-full border-4 overflow-hidden z-40 shadow-2xl transition-all duration-300 ${activeViolation ? 'border-rose-500 glow-rose scale-110' : 'border-emerald-500 glow-emerald'}`}>
+        {/* Camera Preview — Enlarged Floating Bubble */}
+        <div className={`fixed bottom-8 left-8 w-64 h-48 rounded-3xl border-4 overflow-hidden z-40 shadow-2xl transition-all duration-300 ${activeViolation ? 'border-rose-500 glow-rose scale-110' : 'border-emerald-500 glow-emerald'}`}>
           <video ref={videoRef} autoPlay muted className="w-full h-full object-cover grayscale-[0.2]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end justify-center pb-4">
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/60 backdrop-blur-md rounded-full border border-white/10">
