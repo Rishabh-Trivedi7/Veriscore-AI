@@ -20,6 +20,18 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  const getEffectiveScore = (submission) => {
+    if (!submission) return 0;
+    if (submission.manualScore != null) return submission.manualScore;
+    if (typeof submission.score === 'number' && submission.score > 0) return submission.score;
+    if (submission.aiGrading?.score != null) {
+      // aiGrading.score is 0–10; controller multiplies by 10 when persisting,
+      // but if score wasn't persisted correctly, fall back to this.
+      return submission.aiGrading.score * 10;
+    }
+    return 0;
+  };
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -77,7 +89,7 @@ const AdminDashboard = () => {
 
     const totalSubmissions = submissions.length;
     const passedCount = submissions.filter((s) => {
-      const score = s.manualScore ?? s.score ?? 0;
+      const score = getEffectiveScore(s);
       const passing = selectedExam?.passingScore ?? s.examId?.passingScore ?? 0;
       return score >= passing;
     }).length;
@@ -205,7 +217,7 @@ const AdminDashboard = () => {
                         {index > 2 && <span className="text-slate-500 font-mono">#{index + 1}</span>}
                       </td>
                   <td className="py-5 px-6 font-bold text-slate-100 text-center font-mono-timer">
-                    {sub.manualScore ?? sub.score ?? 0}
+                    {getEffectiveScore(sub)}%
                   </td>
                       <td className="py-5 px-6 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
@@ -257,34 +269,49 @@ const AdminDashboard = () => {
                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Result</p>
                     <div className="flex items-center gap-2">
-                      <p className={`text-xl font-bold leading-none ${
-                        (selectedSubmission.manualScore ?? selectedSubmission.score ?? 0) >= (selectedSubmission.examId?.passingScore || 0)
-                          ? 'text-emerald-400'
-                          : 'text-rose-400'
-                      }`}>
-                        {(selectedSubmission.manualScore ?? selectedSubmission.score ?? 0) >= (selectedSubmission.examId?.passingScore || 0)
-                          ? 'Pass'
-                          : 'Fail'}
-                      </p>
-                      {(selectedSubmission.manualScore ?? selectedSubmission.score ?? 0) >= (selectedSubmission.examId?.passingScore || 0) && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded glow-emerald animate-pulse">
-                          RANK #{submissions.findIndex(s => s._id === selectedSubmission._id) + 1}
-                        </span>
-                      )}
+                      {(() => {
+                        const score = getEffectiveScore(selectedSubmission);
+                        const passing = selectedSubmission.examId?.passingScore || 0;
+                        const hasAIGuard = !!selectedSubmission.aiGrading;
+
+                        if (!hasAIGuard && score === 0) {
+                          return (
+                            <p className="text-xl font-bold leading-none text-amber-400">
+                              Pending Review
+                            </p>
+                          );
+                        }
+
+                        const isPass = score >= passing;
+                        return (
+                          <>
+                            <p className={`text-xl font-bold leading-none ${
+                              isPass ? 'text-emerald-400' : 'text-rose-400'
+                            }`}>
+                              {isPass ? 'Pass' : 'Fail'}
+                            </p>
+                            {isPass && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded glow-emerald animate-pulse">
+                                RANK #{submissions.findIndex(s => s._id === selectedSubmission._id) + 1}
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Score</p>
                     <p className="text-xl font-bold leading-none text-slate-100 font-mono-timer">
-                      {(selectedSubmission.manualScore ?? selectedSubmission.score ?? 0)}
+                      {getEffectiveScore(selectedSubmission)}%
                     </p>
                   </div>
                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Trust Index</p>
                     <p className={`text-xl font-bold leading-none font-mono-timer ${
-                      (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0) > 80
+                      (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0) > 70
                         ? 'text-emerald-400'
-                        : (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0) > 50
+                        : (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0) >= 40
                         ? 'text-amber-400'
                         : 'text-rose-400'
                     }`}>
