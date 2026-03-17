@@ -55,13 +55,15 @@ Return JSON ONLY:
       // but regex remains the safest production fallback.
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       const parsedData = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-
+      console.log(parsedData);
       // Normalize to a strict binary 0/1 signal
       let binaryScore = Number(parsedData.score);
       if (!Number.isFinite(binaryScore)) {
         binaryScore = 0;
+        
       } else {
         binaryScore = binaryScore >= 0.5 ? 1 : 0;
+        console.log(binaryScore);
       }
 
       return {
@@ -86,15 +88,18 @@ Return JSON ONLY:
   }
 
   async gradeMultipleAnswers(answers, exam) {
-    const questions = exam.questions;
+    const questions = exam.questions; 
+    console.log(questions);
     const gradingResults = [];
+    console.log(gradingResults);
     let allPerfectMatches = true;
 
     // Sequential calls are safer for free-tier RPM limits.
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
+      console.log(q);
       const ans = answers.get(i.toString()) || 'No answer provided.';
-
+      console.log(ans);
       // Logic check for exact matches
       if (
         typeof ans === 'string' &&
@@ -105,12 +110,16 @@ Return JSON ONLY:
       }
 
       const res = await this.gradeAnswer(ans, q.correctAnswer, q.questionText);
-
+      console.log(res);
       // Ensure points are numeric and non-zero to avoid divide-by-zero later
       const rawPoints = Number(q.points);
+      console.log(rawPoints);
       const maxPoints = Number.isFinite(rawPoints) && rawPoints > 0 ? rawPoints : 1;
+      console.log(maxPoints);
       const isCorrect = Number(res.score) >= 0.5;
+      console.log(isCorrect);
       const awardedPoints = isCorrect ? maxPoints : 0;
+      console.log(awardedPoints);
 
       gradingResults.push({
         ...res,
@@ -125,20 +134,21 @@ Return JSON ONLY:
       (s, r) => s + (Number.isFinite(Number(r.maxPoints)) ? Number(r.maxPoints) : 0),
       0
     );
+    console.log(totalMaxPoints);
     const totalAwardedPoints = gradingResults.reduce(
       (s, r) => s + (Number.isFinite(Number(r.awardedPoints)) ? Number(r.awardedPoints) : 0),
       0
     );
-
+    console.log(totalAwardedPoints);
     const avgScore =
       totalMaxPoints > 0 ? Number((totalAwardedPoints / totalMaxPoints) * 10) : 0;
-
+    console.log(avgScore);
     // Aggregate unique gaps (max 5)
     const uniqueGaps = [...new Set(gradingResults.flatMap((r) => r.gaps || []))];
-
+    console.log(uniqueGaps);
     const allError = gradingResults.every((r) => r.summary === ERROR_SUMMARY);
     let combinedSummary;
-
+    console.log(allError);
     if (allPerfectMatches && !allError) {
       combinedSummary = 'Candidate provided exact matches for all reference answers.';
     } else if (allError) {
@@ -160,6 +170,7 @@ Return JSON ONLY:
         : `Successfully evaluated ${questions.length} questions.`,
       questionWiseGrading: gradingResults,
     };
+    
   }
 }
 

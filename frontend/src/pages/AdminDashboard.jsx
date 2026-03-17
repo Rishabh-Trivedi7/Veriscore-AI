@@ -22,13 +22,48 @@ const AdminDashboard = () => {
 
   const getEffectiveScore = (submission) => {
     if (!submission) return 0;
-    if (submission.manualScore != null) return submission.manualScore;
-    if (typeof submission.score === 'number' && submission.score > 0) return submission.score;
-    if (submission.aiGrading?.score != null) {
-      // aiGrading.score is 0–10; controller multiplies by 10 when persisting,
-      // but if score wasn't persisted correctly, fall back to this.
-      return submission.aiGrading.score * 10;
+
+    // Debug log to inspect the submission object and score
+    console.log('DEBUG getEffectiveScore:', submission);
+
+    // 1. Check primary score field first if it is > 0
+    if (
+      submission.score !== undefined &&
+      submission.score !== null &&
+      submission.score !== '' &&
+      !isNaN(Number(submission.score)) &&
+      Number(submission.score) > 0
+    ) {
+      return Number(submission.score);
     }
+
+    // 2. Check Manual Score if it is > 0
+    if (
+      submission.manualScore !== undefined &&
+      submission.manualScore !== null &&
+      Number(submission.manualScore) > 0
+    ) {
+      return Number(submission.manualScore);
+    }
+
+    // 3. Fallback to AI Grading object if missing
+    if (
+      submission.aiGrading &&
+      submission.aiGrading.score !== undefined &&
+      submission.aiGrading.score !== null &&
+      Number(submission.aiGrading.score) > 0
+    ) {
+      return Number(submission.aiGrading.score) * 10;
+    }
+
+    // 4. Default fallbacks to zero if all scores are 0
+    if (submission.score !== undefined && submission.score !== null && submission.score !== '') {
+      return Number(submission.score);
+    }
+    if (submission.manualScore !== undefined && submission.manualScore !== null) {
+      return Number(submission.manualScore);
+    }
+
     return 0;
   };
 

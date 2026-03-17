@@ -111,9 +111,13 @@ export const submitExam = asyncHandler(async (req, res) => {
       });
     } else {
       submission.answers = answersMap;
-      submission.tabSwitches = tabSwitches;
-      submission.aiViolations = aiViolations;
-      submission.violationLogs = violationLogs;
+      // We take the max of what frontend sends and what's already saved just in case,
+      // but primarily we just don't want to reset violationLogs to [] if frontend didn't send them.
+      submission.tabSwitches = Math.max(submission.tabSwitches, tabSwitches);
+      submission.aiViolations = Math.max(submission.aiViolations, aiViolations);
+      if (violationLogs && violationLogs.length > 0) {
+        submission.violationLogs.push(...violationLogs);
+      }
       submission.timeSpent = parseInt(timeSpent, 10) || 0;
       await submission.save();
     }
@@ -123,8 +127,9 @@ export const submitExam = asyncHandler(async (req, res) => {
     
     // SAVE RESULTS: Convert 0-10 scale to 0-100%
     submission.aiGrading = aiGrading;
+    console.log("aiGrading score", aiGrading.score);
     submission.score = Math.round((Number(aiGrading.score) || 0) * 10); 
-    
+    console.log("submission score", submission.score);
     await submission.save();
 
     const populatedSubmission = await Submission.findById(submission._id)
