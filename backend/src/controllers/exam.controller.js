@@ -144,3 +144,15 @@ export const submitExam = asyncHandler(async (req, res) => {
     throw new ApiError(500, error.message || "Submission failed");
   }
 });
+
+export const getCandidateResults = asyncHandler(async (req, res) => {
+  const submissions = await Submission.find({ candidateId: req.user._id })
+    .populate('examId', 'title description passingScore duration')
+    .sort({ createdAt: -1 });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, { results: submissions }, "Candidate results fetched successfully")
+    );
+});

@@ -102,6 +102,20 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleUpdateStatus = async (submissionId, status) => {
+    try {
+      setLoading(true);
+      await api.patch(`/api/v1/admin/submissions/${submissionId}/status`, { status });
+      setSelectedSubmission(prev => ({ ...prev, status }));
+      await fetchExamSubmissions(selectedExam._id);
+    } catch (err) {
+      setError('Failed to update candidate status');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -295,7 +309,21 @@ const AdminDashboard = () => {
                   <h3 className="text-2xl font-bold text-slate-100 tracking-tight">Intelligence Audit Report</h3>
                   <p className="text-slate-500 text-xs font-mono">{selectedSubmission.candidateId?.fullName} · {selectedSubmission.examId?.title}</p>
                 </div>
-                <button onClick={() => setSelectedSubmission(null)} className="btn-ghost p-2 text-2xl">×</button>
+                <div className="flex items-center gap-4">
+                  {selectedSubmission.status === 'pending' ? (
+                    <>
+                      <button onClick={() => handleUpdateStatus(selectedSubmission._id, 'selected')} className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-bold transition-all hover:bg-emerald-500/20 tracking-wider">SELECT CANDIDATE</button>
+                      <button onClick={() => handleUpdateStatus(selectedSubmission._id, 'rejected')} className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-bold transition-all hover:bg-rose-500/20 tracking-wider">REJECT</button>
+                    </>
+                  ) : (
+                    <span className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border ${
+                      selectedSubmission.status === 'selected' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                    }`}>
+                      {selectedSubmission.status}
+                    </span>
+                  )}
+                  <button onClick={() => setSelectedSubmission(null)} className="btn-ghost p-2 text-2xl">×</button>
+                </div>
               </div>
 
               <div className="p-8">

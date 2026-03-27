@@ -84,6 +84,11 @@ const submissionSchema = new mongoose.Schema(
     timeSpent: {
       type: Number, // in minutes
     },
+    status: {
+      type: String,
+      enum: ["pending", "selected", "rejected"],
+      default: "pending",
+    },
   },
   {
     timestamps: true,

@@ -257,6 +257,7 @@ export const getSubmissionsByExam = asyncHandler(async (req, res) => {
           title: exam.title,
           passingScore: exam.passingScore,
         },
+        violationLogs: submission.violationLogs || [],
       };
     })
     // Rankings: higher trust score first, then higher test score
@@ -271,5 +272,31 @@ export const getSubmissionsByExam = asyncHandler(async (req, res) => {
     .status(200)
     .json(
       new ApiResponse(200, { submissions: formattedSubmissions }, "Submissions fetched successfully")
+    );
+});
+
+export const updateSubmissionStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!["pending", "selected", "rejected"].includes(status)) {
+    throw new ApiError(400, "Invalid status value");
+  }
+
+  const submission = await Submission.findByIdAndUpdate(
+    id,
+    { status },
+    { new: true, runValidators: true }
+  ).populate('candidateId', 'username email fullName profilePicture resume')
+   .populate('examId', 'title passingScore');
+
+  if (!submission) {
+    throw new ApiError(404, "Submission not found");
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, { submission }, "Submission status updated successfully")
     );
 });
