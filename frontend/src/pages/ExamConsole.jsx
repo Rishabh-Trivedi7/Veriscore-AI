@@ -158,7 +158,7 @@ const ExamConsole = () => {
     try {
       // Ensure answers is a clean plain object for backend validation
       const finalAnswers = answers instanceof Map ? Object.fromEntries(answers) : { ...answers };
-      
+
       const submissionData = {
         examId: exam._id,
         answers: finalAnswers,
@@ -335,7 +335,7 @@ const ExamConsole = () => {
                     {question.points} PTS
                   </span>
                 </div>
-                
+
                 <textarea
                   value={answers[index] || ''}
                   onChange={(e) => handleAnswerChange(index, e.target.value)}
@@ -376,7 +376,7 @@ const ExamConsole = () => {
               <div className="p-6 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex gap-5">
                 <span className="text-3xl">🤖</span>
                 <p className="text-sm font-medium text-amber-200 leading-relaxed">
-                  <strong className="text-amber-100 uppercase tracking-wider block mb-1">AI Proctoring Enabled</strong> 
+                  <strong className="text-amber-100 uppercase tracking-wider block mb-1">AI Proctoring Enabled</strong>
                   Biometric analysis and environmental monitoring will be active. Maintain focus within the portal.
                 </p>
               </div>

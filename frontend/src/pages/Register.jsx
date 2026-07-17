@@ -37,10 +37,10 @@ const Register = () => {
       await register(payload);
       navigate('/');
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 
-                          err.response?.data?.error ||
-                          err.message ||
-                          'Registration failed. Please check your connection and try again.';
+      const errorMessage = err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Registration failed. Please check your connection and try again.';
       setError(errorMessage);
       console.error('Registration error:', err);
     } finally {

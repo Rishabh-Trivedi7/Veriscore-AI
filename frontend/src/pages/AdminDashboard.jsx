@@ -205,7 +205,7 @@ const AdminDashboard = () => {
           <div className="glass rounded-3xl overflow-hidden mb-10 animate-in slide-in-from-right-4 duration-500">
             <div className="p-8 border-b border-white/5 flex justify-between items-center">
               <div>
-                <button 
+                <button
                   onClick={() => setViewMode('exams')}
                   className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2 flex items-center gap-1 hover:-translate-x-1 transition-transform"
                 >
@@ -265,15 +265,14 @@ const AdminDashboard = () => {
                         {index === 2 && <span className="text-xl" title="Bronze Rank">🥉</span>}
                         {index > 2 && <span className="text-slate-500 font-mono">#{index + 1}</span>}
                       </td>
-                  <td className="py-5 px-6 font-bold text-slate-100 text-center font-mono-timer">
-                    {getEffectiveScore(sub)}%
-                  </td>
+                      <td className="py-5 px-6 font-bold text-slate-100 text-center font-mono-timer">
+                        {getEffectiveScore(sub)}%
+                      </td>
                       <td className="py-5 px-6 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                          (sub.computedTrustScore ?? sub.trustScore ?? 0) > 80
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${(sub.computedTrustScore ?? sub.trustScore ?? 0) > 80
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                             : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                        }`}>
+                          }`}>
                           {(sub.computedTrustScore ?? sub.trustScore ?? 0).toFixed
                             ? (sub.computedTrustScore ?? sub.trustScore ?? 0).toFixed(2)
                             : (sub.computedTrustScore ?? sub.trustScore ?? 0)}
@@ -316,9 +315,8 @@ const AdminDashboard = () => {
                       <button onClick={() => handleUpdateStatus(selectedSubmission._id, 'rejected')} className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-bold transition-all hover:bg-rose-500/20 tracking-wider">REJECT</button>
                     </>
                   ) : (
-                    <span className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border ${
-                      selectedSubmission.status === 'selected' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                    }`}>
+                    <span className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border ${selectedSubmission.status === 'selected' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      }`}>
                       {selectedSubmission.status}
                     </span>
                   )}
@@ -348,9 +346,8 @@ const AdminDashboard = () => {
                         const isPass = score >= passing;
                         return (
                           <>
-                            <p className={`text-xl font-bold leading-none ${
-                              isPass ? 'text-emerald-400' : 'text-rose-400'
-                            }`}>
+                            <p className={`text-xl font-bold leading-none ${isPass ? 'text-emerald-400' : 'text-rose-400'
+                              }`}>
                               {isPass ? 'Pass' : 'Fail'}
                             </p>
                             {isPass && (
@@ -371,13 +368,12 @@ const AdminDashboard = () => {
                   </div>
                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Trust Index</p>
-                    <p className={`text-xl font-bold leading-none font-mono-timer ${
-                      (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0) > 70
+                    <p className={`text-xl font-bold leading-none font-mono-timer ${(selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0) > 70
                         ? 'text-emerald-400'
                         : (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0) >= 40
-                        ? 'text-amber-400'
-                        : 'text-rose-400'
-                    }`}>
+                          ? 'text-amber-400'
+                          : 'text-rose-400'
+                      }`}>
                       {(selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0).toFixed
                         ? (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0).toFixed(2)
                         : (selectedSubmission.computedTrustScore ?? selectedSubmission.trustScore ?? 0)}

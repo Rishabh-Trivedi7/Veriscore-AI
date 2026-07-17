@@ -122,10 +122,10 @@ const CandidateDashboard = () => {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   const navItems = [
-    { id: 'welcome',  label: 'Home',               icon: <IconHome /> },
-    { id: 'exams',    label: 'Available Exams',    icon: <IconExams /> },
-    { id: 'results',  label: 'Results & Feedback', icon: <IconResults /> },
-    { id: 'profile',  label: 'Profile',             icon: <IconProfile /> },
+    { id: 'welcome', label: 'Home', icon: <IconHome /> },
+    { id: 'exams', label: 'Available Exams', icon: <IconExams /> },
+    { id: 'results', label: 'Results & Feedback', icon: <IconResults /> },
+    { id: 'profile', label: 'Profile', icon: <IconProfile /> },
   ];
 
   const displayName = user?.fullName || user?.username || 'Candidate';
@@ -386,9 +386,9 @@ const CandidateDashboard = () => {
 const WelcomeView = ({ displayName, initials, user, getFullUrl, onNavigate }) => {
   const greeting = getGreeting();
   const quickLinks = [
-    { id: 'exams',   emoji: '📋', label: 'Available Exams',    desc: 'Browse and start proctored assessments', color: '#3b82f6' },
-    { id: 'results', emoji: '📈', label: 'Results & Feedback', desc: 'View scores and AI skill gap analysis',   color: '#10b981' },
-    { id: 'profile', emoji: '👤', label: 'My Profile',         desc: 'Manage your personal information',        color: '#8b5cf6' },
+    { id: 'exams', emoji: '📋', label: 'Available Exams', desc: 'Browse and start proctored assessments', color: '#3b82f6' },
+    { id: 'results', emoji: '📈', label: 'Results & Feedback', desc: 'View scores and AI skill gap analysis', color: '#10b981' },
+    { id: 'profile', emoji: '👤', label: 'My Profile', desc: 'Manage your personal information', color: '#8b5cf6' },
   ];
 
   return (
@@ -575,9 +575,9 @@ const ExamsView = ({ exams, loading, error, onStart }) => (
 ═══════════════════════════════════════════════════════════════════ */
 const ResultsView = ({ results, loading, error, expandedFeedback, setExpandedFeedback }) => {
   const statusMap = {
-    selected: { label: 'Selected for Next Round', color: '#34d399', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.25)' },
-    rejected: { label: 'Not Selected',            color: '#f87171', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)' },
-    pending:  { label: 'Review Pending',           color: '#fbbf24', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)' },
+    selected: { label: 'Selected for Next Round', color: '#34d399', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)' },
+    rejected: { label: 'Not Selected', color: '#f87171', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.25)' },
+    pending: { label: 'Review Pending', color: '#fbbf24', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)' },
   };
 
   return (
@@ -682,7 +682,7 @@ const ProfileView = ({ user, getFullUrl }) => {
   const { setUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState('');
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState({
     username: user?.username || '',
@@ -739,7 +739,7 @@ const ProfileView = ({ user, getFullUrl }) => {
         )}
       </div>
 
-      {error   && <div style={{ marginBottom: '16px', padding: '14px 18px', borderRadius: '12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '14px' }}>{error}</div>}
+      {error && <div style={{ marginBottom: '16px', padding: '14px 18px', borderRadius: '12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '14px' }}>{error}</div>}
       {success && <div style={{ marginBottom: '16px', padding: '14px 18px', borderRadius: '12px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399', fontSize: '14px' }}>{success}</div>}
 
       <div style={{ borderRadius: '20px', background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(30,41,59,0.8)', backdropFilter: 'blur(16px)', padding: '32px 36px', display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
@@ -782,9 +782,9 @@ const ProfileView = ({ user, getFullUrl }) => {
         <div style={{ flex: 1, minWidth: '280px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '16px', marginBottom: '20px' }}>
             {[
-              { label: 'Full Name',       name: 'fullName',  value: user.fullName,  type: 'text'  },
-              { label: 'Username',        name: 'username',  value: user.username,  type: 'text'  },
-              { label: 'Email',           name: 'email',     value: user.email,     type: 'email' },
+              { label: 'Full Name', name: 'fullName', value: user.fullName, type: 'text' },
+              { label: 'Username', name: 'username', value: user.username, type: 'text' },
+              { label: 'Email', name: 'email', value: user.email, type: 'email' },
             ].map(f => (
               <div key={f.name} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{f.label}</label>
